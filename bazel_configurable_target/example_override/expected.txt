@@ -1,0 +1,2 @@
+This is the CUSTOM content from lib_b, overriding lib_a's default.
+This is EXTRA content from lib_c, extending lib_a's default.

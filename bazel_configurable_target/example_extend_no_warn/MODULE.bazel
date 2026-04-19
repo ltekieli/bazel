@@ -1,0 +1,16 @@
+module(
+    name = "example_extend_no_warn",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+local_path_override(
+    module_name = "lib_a",
+    path = "../lib_a_no_warn",
+)
+
+bazel_dep(name = "lib_c", version = "0.0.0")
+local_path_override(
+    module_name = "lib_c",
+    path = "../lib_c",
+)

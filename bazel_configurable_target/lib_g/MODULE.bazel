@@ -1,0 +1,12 @@
+module(
+    name = "lib_g",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+
+# ERROR: override_target() is only allowed in the root module.
+override_target(
+    target = "@lib_a//:content",
+    replacement = "//:replacement",
+)

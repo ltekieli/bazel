@@ -1,0 +1,22 @@
+module(
+    name = "example_multi_extend",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+local_path_override(
+    module_name = "lib_a",
+    path = "../lib_a",
+)
+
+bazel_dep(name = "lib_c", version = "0.0.0")
+local_path_override(
+    module_name = "lib_c",
+    path = "../lib_c",
+)
+
+bazel_dep(name = "lib_d", version = "0.0.0")
+local_path_override(
+    module_name = "lib_d",
+    path = "../lib_d",
+)

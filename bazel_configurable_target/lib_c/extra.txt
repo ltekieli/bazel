@@ -1,0 +1,1 @@
+This is EXTRA content from lib_c, extending lib_a's default.

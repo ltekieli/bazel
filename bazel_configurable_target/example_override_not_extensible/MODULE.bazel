@@ -1,0 +1,29 @@
+module(
+    name = "example_override_not_extensible",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+local_path_override(
+    module_name = "lib_a",
+    path = "../lib_a",
+)
+
+bazel_dep(name = "lib_b", version = "0.0.0")
+local_path_override(
+    module_name = "lib_b",
+    path = "../lib_b",
+)
+
+bazel_dep(name = "lib_c", version = "0.0.0")
+local_path_override(
+    module_name = "lib_c",
+    path = "../lib_c",
+)
+
+# Override with extensible=False: lib_c's extend_target is suppressed.
+override_target(
+    target = "@lib_a//:content",
+    replacement = "@lib_b//:custom_content",
+    extensible = False,
+)

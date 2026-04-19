@@ -1,0 +1,2 @@
+This is the DEFAULT content from lib_a_no_warn.
+This is EXTRA content from lib_c, extending lib_a's default.

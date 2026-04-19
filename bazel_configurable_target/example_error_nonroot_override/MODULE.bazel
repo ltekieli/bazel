@@ -1,0 +1,16 @@
+module(
+    name = "example_error_nonroot_override",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+local_path_override(
+    module_name = "lib_a",
+    path = "../lib_a",
+)
+
+bazel_dep(name = "lib_g", version = "0.0.0")
+local_path_override(
+    module_name = "lib_g",
+    path = "../lib_g",
+)

@@ -1,0 +1,12 @@
+module(
+    name = "lib_d",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+
+# Second extension module: also extends lib_a's configurable target
+extend_target(
+    target = "@lib_a//:content",
+    extra = "//:addon_content",
+)

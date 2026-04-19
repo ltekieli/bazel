@@ -1,0 +1,2 @@
+This is the DEFAULT content from lib_a.
+extra from lib_e

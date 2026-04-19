@@ -1,0 +1,1 @@
+This is ADDON content from lib_d, extending lib_a's default.

@@ -1,0 +1,12 @@
+module(
+    name = "lib_c",
+    version = "0.0.0",
+)
+
+bazel_dep(name = "lib_a", version = "0.0.0")
+
+# Extend lib_a's configurable target with additional content
+extend_target(
+    target = "@lib_a//:content",
+    extra = "//:extra_content",
+)

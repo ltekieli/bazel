@@ -1,0 +1,1 @@
+This is the DEFAULT content from lib_a.
