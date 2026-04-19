@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
+import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.cmdline.RepositoryMapping;
 import com.google.devtools.build.lib.cmdline.RepositoryName;
 import com.google.devtools.build.lib.skyframe.SkyFunctions;
@@ -42,14 +43,18 @@ public abstract class BazelDepGraphValue implements SkyValue {
       ImmutableList<AbridgedModule> abridgedModules,
       ImmutableTable<ModuleExtensionId, ModuleKey, ModuleExtensionUsage> extensionUsagesTable,
       ImmutableMap<ModuleExtensionId, String> extensionUniqueNames,
-      ImmutableTable<ModuleExtensionId, String, RepositoryName> repoOverrides) {
+      ImmutableTable<ModuleExtensionId, String, RepositoryName> repoOverrides,
+      ImmutableMap<Label, ConfigurableTargetOverrideInfo> configurableTargetOverrides,
+      ImmutableMap<Label, ImmutableList<Label>> configurableTargetExtensions) {
     return new AutoValue_BazelDepGraphValue(
         depGraph,
         ImmutableBiMap.copyOf(canonicalRepoNameLookup),
         abridgedModules,
         extensionUsagesTable,
         extensionUniqueNames,
-        repoOverrides);
+        repoOverrides,
+        configurableTargetOverrides,
+        configurableTargetExtensions);
   }
 
   public static BazelDepGraphValue createEmptyDepGraph() {
@@ -75,7 +80,9 @@ public abstract class BazelDepGraphValue implements SkyValue {
         ImmutableList.of(),
         ImmutableTable.of(),
         ImmutableMap.of(),
-        ImmutableTable.of());
+        ImmutableTable.of(),
+        ImmutableMap.of(),
+        ImmutableMap.of());
   }
 
   /**
@@ -112,6 +119,18 @@ public abstract class BazelDepGraphValue implements SkyValue {
    * canonical name of the repo that should override it (if any).
    */
   public abstract ImmutableTable<ModuleExtensionId, String, RepositoryName> getRepoOverrides();
+
+  /**
+   * The resolved configurable target overrides. Keys are the canonical labels of the configurable targets,
+   * values carry the canonical label of the replacement target and the extensible flag.
+   */
+  public abstract ImmutableMap<Label, ConfigurableTargetOverrideInfo> getConfigurableTargetOverrides();
+
+  /**
+   * The resolved configurable target extensions. Keys are the canonical labels of the configurable targets,
+   * values are the ordered lists of canonical labels of the extension targets.
+   */
+  public abstract ImmutableMap<Label, ImmutableList<Label>> getConfigurableTargetExtensions();
 
   /**
    * Returns the full {@link RepositoryMapping} for the given module, including repos from Bazel

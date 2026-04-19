@@ -54,6 +54,8 @@ public class ModuleThreadContext extends StarlarkThreadContext {
   private final Map<String, DepSpec> deps = new LinkedHashMap<>();
   private final List<ModuleExtensionUsageBuilder> extensionUsageBuilders = new ArrayList<>();
   private final Map<String, ModuleOverride> overrides = new LinkedHashMap<>();
+  private final Map<String, ConfigurableTargetOverrideSpec> configurableTargetOverrides = new LinkedHashMap<>();
+  private final Map<String, List<String>> configurableTargetExtensions = new LinkedHashMap<>();
   private final Map<String, RepoNameUsage> repoNameUsages = new HashMap<>();
 
   private final Map<String, RepoOverride> overriddenRepos = new HashMap<>();
@@ -338,6 +340,22 @@ public class ModuleThreadContext extends StarlarkThreadContext {
     return currentModuleFilePath;
   }
 
+  public void addConfigurableTargetOverride(
+      String virtualLabel, String replacementLabel, boolean extensible) throws EvalException {
+    ConfigurableTargetOverrideSpec incoming = new ConfigurableTargetOverrideSpec(replacementLabel, extensible);
+    ConfigurableTargetOverrideSpec existing = configurableTargetOverrides.putIfAbsent(virtualLabel, incoming);
+    if (existing != null) {
+      throw Starlark.errorf(
+          "multiple overrides for configurable target %s found: %s and %s",
+          virtualLabel, existing.replacement(), replacementLabel);
+    }
+  }
+
+  public void addConfigurableTargetExtension(String virtualLabel, String extensionLabel) {
+    configurableTargetExtensions.computeIfAbsent(virtualLabel, k -> new ArrayList<>())
+        .add(extensionLabel);
+  }
+
   public void addOverride(String moduleName, ModuleOverride override) throws EvalException {
     if (shouldIgnoreDevDeps()) {
       return;
@@ -400,6 +418,12 @@ public class ModuleThreadContext extends StarlarkThreadContext {
         .setDeps(ImmutableMap.copyOf(deps))
         .setOriginalDeps(ImmutableMap.copyOf(deps))
         .setExtensionUsages(extensionUsages.build())
+        .setConfigurableTargetOverrides(ImmutableMap.copyOf(configurableTargetOverrides))
+        .setConfigurableTargetExtensions(
+            configurableTargetExtensions.entrySet().stream()
+                .collect(
+                    ImmutableMap.toImmutableMap(
+                        Map.Entry::getKey, e -> ImmutableList.copyOf(e.getValue()))))
         .build();
   }
 

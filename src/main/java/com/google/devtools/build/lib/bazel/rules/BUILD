@@ -55,6 +55,7 @@ java_library(
         "//src/main/java/com/google/devtools/build/lib/rules:filegroup/filegroup",
         "//src/main/java/com/google/devtools/build/lib/rules:label_build_settings",
         "//src/main/java/com/google/devtools/build/lib/rules:toolchain_type",
+        "//src/main/java/com/google/devtools/build/lib/rules:configurable_target",
         "//src/main/java/com/google/devtools/build/lib/rules/android",
         "//src/main/java/com/google/devtools/build/lib/rules/apple",
         "//src/main/java/com/google/devtools/build/lib/rules/config",

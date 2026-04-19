@@ -69,6 +69,20 @@ abstract class ModuleBase {
    */
   public abstract ImmutableList<String> getToolchainsToRegister();
 
+  /**
+   * Virtual target overrides declared in this module's MODULE.bazel file. Keys are the string labels
+   * of the configurable targets to override (e.g. "@foo//:bar"), values are override specs containing the
+   * replacement label and extensible flag.
+   */
+  public abstract ImmutableMap<String, ConfigurableTargetOverrideSpec> getConfigurableTargetOverrides();
+
+  /**
+   * Virtual target extensions declared in this module's MODULE.bazel file. Keys are the string
+   * labels of the configurable targets to extend (e.g. "@foo//:bar"), values are the string labels of
+   * the extension targets to contribute.
+   */
+  public abstract ImmutableMap<String, ImmutableList<String>> getConfigurableTargetExtensions();
+
   /** The module extensions used in this module. */
   public abstract ImmutableList<ModuleExtensionUsage> getExtensionUsages();
 

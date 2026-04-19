@@ -221,6 +221,18 @@ public final class BuildLanguageOptions extends OptionsBase {
   public boolean experimentalSinglePackageToolchainBinding;
 
   @Option(
+      name = "experimental_configurable_targets",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.STARLARK_SEMANTICS,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+      help =
+          "If enabled, the override_target() and extend_target() directives in MODULE.bazel are"
+              + " available, and the configurable_target rule supports overrides and extensions"
+              + " from the module dependency graph.")
+  public boolean experimentalConfigurableTargets;
+
+  @Option(
       name = "allow_experimental_loads",
       documentationCategory = OptionDocumentationCategory.INPUT_STRICTNESS,
       effectTags = {OptionEffectTag.BUILD_FILE_SEMANTICS},
@@ -896,6 +908,7 @@ public final class BuildLanguageOptions extends OptionsBase {
             .setBool(
                 EXPERIMENTAL_SINGLE_PACKAGE_TOOLCHAIN_BINDING,
                 experimentalSinglePackageToolchainBinding)
+            .setBool(EXPERIMENTAL_CONFIGURABLE_TARGETS, experimentalConfigurableTargets)
             .setBool(EXPERIMENTAL_ENABLE_FIRST_CLASS_MACROS, experimentalEnableFirstClassMacros)
             .setBool(EXPERIMENTAL_ENABLE_SCL_DIALECT, experimentalEnableSclDialect)
             .setBool(EXPERIMENTAL_ISOLATED_EXTENSION_USAGES, experimentalIsolatedExtensionUsages)
@@ -1076,6 +1089,8 @@ public final class BuildLanguageOptions extends OptionsBase {
       "-experimental_enable_android_migration_apis";
   public static final String EXPERIMENTAL_SINGLE_PACKAGE_TOOLCHAIN_BINDING =
       "-experimental_single_package_toolchain_binding";
+  public static final String EXPERIMENTAL_CONFIGURABLE_TARGETS =
+      "-experimental_configurable_targets";
   public static final String EXPERIMENTAL_ENABLE_FIRST_CLASS_MACROS =
       "+experimental_enable_first_class_macros";
   public static final String EXPERIMENTAL_ENABLE_SCL_DIALECT = "+experimental_enable_scl_dialect";

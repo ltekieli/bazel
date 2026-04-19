@@ -409,6 +409,137 @@ public class ModuleFileGlobals {
     context.getModuleBuilder().addToolchainsToRegister(checkedToolchainLabels);
   }
 
+  private static void checkAbsoluteLabel(String label, String where) throws EvalException {
+    if (!label.startsWith("//") && !label.startsWith("@")) {
+      throw Starlark.errorf(
+          "Expected absolute target label (must begin with '//' or '@') for '%s' argument, but"
+              + " got '%s' as an argument",
+          where, label);
+    }
+  }
+
+  @StarlarkMethod(
+      name = "override_target",
+      doc =
+          "Declares that a configurable target defined in another module should be replaced with a"
+              + " target from this module. This directive can only be used in the root module."
+              + " Non-root modules should use <code>extend_target</code> instead."
+              + " The configurable target must be declared using the"
+              + " <code>configurable_target</code> rule in a BUILD file. Both labels must be absolute"
+              + " (beginning with <code>@</code> or <code>//</code>).",
+      parameters = {
+        @Param(
+            name = "target",
+            doc =
+                "The absolute label of the configurable target to override (e.g."
+                    + " <code>@my_module//:my_target</code>).",
+            named = true,
+            positional = false),
+        @Param(
+            name = "replacement",
+            doc =
+                "The absolute label of the target that should replace the configurable target (e.g."
+                    + " <code>//my_package:my_replacement</code>).",
+            named = true,
+            positional = false),
+        @Param(
+            name = "extensible",
+            doc =
+                "If true (default), extensions registered via <code>extend_target</code> are"
+                    + " still applied on top of this override. If false, extensions are suppressed"
+                    + " and the override acts as a complete replacement.",
+            named = true,
+            positional = false,
+            defaultValue = "True"),
+        @Param(
+            name = "dev_dependency",
+            doc =
+                "If true, the override will not be applied when"
+                    + " `--ignore_dev_dependency` is enabled.",
+            named = true,
+            positional = false,
+            defaultValue = "False"),
+      },
+      useStarlarkThread = true)
+  public void overrideTarget(
+      String target, String replacement, boolean extensible, boolean devDependency,
+      StarlarkThread thread)
+      throws EvalException {
+    ModuleThreadContext context =
+        ModuleThreadContext.fromOrFail(thread, "override_target()");
+    context.setNonModuleCalled();
+    if (!thread
+        .getSemantics()
+        .getBool(BuildLanguageOptions.EXPERIMENTAL_CONFIGURABLE_TARGETS)) {
+      throw Starlark.errorf(
+          "override_target() requires --experimental_configurable_targets to be enabled");
+    }
+    if (!context.getModuleBuilder().getKey().equals(ModuleKey.ROOT)) {
+      throw Starlark.errorf(
+          "override_target() is only allowed in the root module. Non-root modules can use"
+              + " extend_target() to contribute to configurable targets.");
+    }
+    if (context.shouldIgnoreDevDeps() && devDependency) {
+      return;
+    }
+    checkAbsoluteLabel(target, "target");
+    checkAbsoluteLabel(replacement, "replacement");
+    context.addConfigurableTargetOverride(target, replacement, extensible);
+  }
+
+  @StarlarkMethod(
+      name = "extend_target",
+      doc =
+          "Declares that a configurable target defined in another module should be extended with"
+              + " additional targets from this module. The contributions from all modules are"
+              + " merged (union of files) with the configurable target's default implementation."
+              + " Both labels must be absolute (beginning with <code>@</code> or"
+              + " <code>//</code>).",
+      parameters = {
+        @Param(
+            name = "target",
+            doc =
+                "The absolute label of the configurable target to extend (e.g."
+                    + " <code>@my_module//:my_target</code>).",
+            named = true,
+            positional = false),
+        @Param(
+            name = "extra",
+            doc =
+                "The absolute label of the target to contribute to the configurable target (e.g."
+                    + " <code>//my_package:my_extra</code>).",
+            named = true,
+            positional = false),
+        @Param(
+            name = "dev_dependency",
+            doc =
+                "If true, the extension will not be applied if the current module is not the"
+                    + " root module or `--ignore_dev_dependency` is enabled.",
+            named = true,
+            positional = false,
+            defaultValue = "False"),
+      },
+      useStarlarkThread = true)
+  public void extendTarget(
+      String target, String extra, boolean devDependency, StarlarkThread thread)
+      throws EvalException {
+    ModuleThreadContext context =
+        ModuleThreadContext.fromOrFail(thread, "extend_target()");
+    context.setNonModuleCalled();
+    if (!thread
+        .getSemantics()
+        .getBool(BuildLanguageOptions.EXPERIMENTAL_CONFIGURABLE_TARGETS)) {
+      throw Starlark.errorf(
+          "extend_target() requires --experimental_configurable_targets to be enabled");
+    }
+    if (context.shouldIgnoreDevDeps() && devDependency) {
+      return;
+    }
+    checkAbsoluteLabel(target, "target");
+    checkAbsoluteLabel(extra, "extra");
+    context.addConfigurableTargetExtension(target, extra);
+  }
+
   @StarlarkMethod(
       name = "use_extension",
       doc =

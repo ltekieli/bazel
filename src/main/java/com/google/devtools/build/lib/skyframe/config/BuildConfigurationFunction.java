@@ -15,6 +15,9 @@ package com.google.devtools.build.lib.skyframe.config;
 
 import static com.google.devtools.build.lib.analysis.constraints.ConstraintConstants.CPU_CONSTRAINT_SETTING;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
 import com.google.devtools.build.lib.analysis.ConfiguredRuleClassProvider;
 import com.google.devtools.build.lib.analysis.PlatformOptions;
@@ -27,14 +30,24 @@ import com.google.devtools.build.lib.analysis.config.InvalidConfigurationExcepti
 import com.google.devtools.build.lib.analysis.config.StarlarkExecTransitionLoader.StarlarkExecTransitionLoadingException;
 import com.google.devtools.build.lib.analysis.config.transitions.BaselineOptionsValue;
 import com.google.devtools.build.lib.analysis.platform.PlatformValue;
+import com.google.devtools.build.lib.bazel.bzlmod.BazelDepGraphValue;
+import com.google.devtools.build.lib.bazel.bzlmod.ConfigurableTargetOverrideInfo;
 import com.google.devtools.build.lib.cmdline.Label;
+import com.google.devtools.build.lib.cmdline.PackageIdentifier;
+import com.google.devtools.build.lib.packages.NoSuchPackageException;
+import com.google.devtools.build.lib.packages.NoSuchTargetException;
+import com.google.devtools.build.lib.packages.Package;
+import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.RuleClassProvider;
+import com.google.devtools.build.lib.packages.Target;
 import com.google.devtools.build.lib.packages.semantics.BuildLanguageOptions;
+import com.google.devtools.build.lib.skyframe.PackageValue;
 import com.google.devtools.build.lib.skyframe.PrecomputedValue;
 import com.google.devtools.build.skyframe.SkyFunction;
 import com.google.devtools.build.skyframe.SkyFunctionException;
 import com.google.devtools.build.skyframe.SkyKey;
 import com.google.devtools.build.skyframe.SkyValue;
+import com.google.devtools.build.skyframe.SkyframeLookupResult;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import net.starlark.java.eval.StarlarkSemantics;
@@ -73,6 +86,36 @@ public final class BuildConfigurationFunction implements SkyFunction {
       return null;
     }
 
+    // Read configurable target overrides and extensions from the module dependency graph.
+    ImmutableMap<Label, ConfigurableTargetOverrideInfo> configurableTargetOverrides;
+    ImmutableMap<Label, ImmutableList<Label>> configurableTargetExtensions;
+    if (starlarkSemantics.getBool(BuildLanguageOptions.EXPERIMENTAL_CONFIGURABLE_TARGETS)) {
+      BazelDepGraphValue bazelDepGraphValue =
+          (BazelDepGraphValue) env.getValue(BazelDepGraphValue.KEY);
+      if (bazelDepGraphValue == null) {
+        return null;
+      }
+      configurableTargetOverrides = bazelDepGraphValue.getConfigurableTargetOverrides();
+      configurableTargetExtensions = bazelDepGraphValue.getConfigurableTargetExtensions();
+
+      // Validate that all override/extension target labels are actually configurable_target rules.
+      if (!configurableTargetOverrides.isEmpty() || !configurableTargetExtensions.isEmpty()) {
+        String validationError =
+            validateConfigurableTargetLabels(
+                env, configurableTargetOverrides, configurableTargetExtensions);
+        if (env.valuesMissing()) {
+          return null;
+        }
+        if (validationError != null) {
+          throw new BuildConfigurationFunctionException(
+              new InvalidConfigurationException(validationError));
+        }
+      }
+    } else {
+      configurableTargetOverrides = ImmutableMap.of();
+      configurableTargetExtensions = ImmutableMap.of();
+    }
+
     try {
       var configurationValue =
           BuildConfigurationValue.create(
@@ -84,7 +127,9 @@ public final class BuildConfigurationFunction implements SkyFunction {
               // Arguments below this are server-global.
               directories,
               ruleClassProvider,
-              fragmentFactory);
+              fragmentFactory,
+              configurableTargetOverrides,
+              configurableTargetExtensions);
       env.getListener().post(ConfigurationValueEvent.create(configurationValue));
       return configurationValue;
     } catch (InvalidConfigurationException e) {
@@ -172,6 +217,91 @@ public final class BuildConfigurationFunction implements SkyFunction {
     } catch (StarlarkExecTransitionLoadingException e) {
       throw new BuildConfigurationFunctionException(new InvalidConfigurationException(e));
     }
+  }
+
+  /**
+   * Validates that all target labels in the override and extension maps are actually
+   * {@code configurable_target} rules. Returns an error message if validation fails, or
+   * {@code null} if all labels are valid.
+   */
+  @Nullable
+  private static String validateConfigurableTargetLabels(
+      Environment env,
+      ImmutableMap<Label, ConfigurableTargetOverrideInfo> overrides,
+      ImmutableMap<Label, ImmutableList<Label>> extensions)
+      throws InterruptedException {
+    // Collect unique package identifiers from all target labels (map keys).
+    ImmutableSet.Builder<PackageIdentifier> pkgIdsBuilder = ImmutableSet.builder();
+    for (Label label : overrides.keySet()) {
+      pkgIdsBuilder.add(label.getPackageIdentifier());
+    }
+    for (Label label : extensions.keySet()) {
+      pkgIdsBuilder.add(label.getPackageIdentifier());
+    }
+    ImmutableSet<PackageIdentifier> pkgIds = pkgIdsBuilder.build();
+
+    // Batch-request all packages.
+    var packageValues =
+        env.getValuesAndExceptions(pkgIds);
+    if (env.valuesMissing()) {
+      return null;
+    }
+
+    // Validate each target label.
+    for (Label label : overrides.keySet()) {
+      String error = validateSingleLabel(label, packageValues, "override_target()");
+      if (error != null) {
+        return error;
+      }
+    }
+    for (Label label : extensions.keySet()) {
+      String error = validateSingleLabel(label, packageValues, "extend_target()");
+      if (error != null) {
+        return error;
+      }
+    }
+    return null;
+  }
+
+  @Nullable
+  private static String validateSingleLabel(
+      Label label,
+      SkyframeLookupResult packageValues,
+      String directive) {
+    PackageValue pkgValue;
+    try {
+      pkgValue =
+          (PackageValue)
+              packageValues.getOrThrow(
+                  label.getPackageIdentifier(), NoSuchPackageException.class);
+    } catch (NoSuchPackageException e) {
+      return String.format(
+          "Label %s is not a configurable_target. %s can only reference"
+              + " configurable_target rules. Package not found: %s",
+          label, directive, e.getMessage());
+    }
+    if (pkgValue == null) {
+      return null; // Skyframe restart needed
+    }
+
+    Package pkg = pkgValue.getPackage();
+    Target target;
+    try {
+      target = pkg.getTarget(label.getName());
+    } catch (NoSuchTargetException e) {
+      return String.format(
+          "Label %s is not a configurable_target. %s can only reference"
+              + " configurable_target rules. Target not found: %s",
+          label, directive, e.getMessage());
+    }
+
+    if (!(target instanceof Rule rule) || !rule.getRuleClass().equals("configurable_target")) {
+      return String.format(
+          "Label %s is not a configurable_target. %s can only reference"
+              + " configurable_target rules.",
+          label, directive);
+    }
+    return null;
   }
 
   private static final class BuildConfigurationFunctionException extends SkyFunctionException {

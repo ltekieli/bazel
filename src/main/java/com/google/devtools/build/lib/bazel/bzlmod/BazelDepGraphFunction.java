@@ -25,9 +25,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
+import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.cmdline.LabelSyntaxException;
 import com.google.devtools.build.lib.cmdline.PackageIdentifier;
 import com.google.devtools.build.lib.cmdline.RepositoryMapping;
@@ -43,6 +45,8 @@ import com.google.devtools.build.skyframe.SkyFunctionException;
 import com.google.devtools.build.skyframe.SkyFunctionException.Transience;
 import com.google.devtools.build.skyframe.SkyKey;
 import com.google.devtools.build.skyframe.SkyValue;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import javax.annotation.Nullable;
 
@@ -80,6 +84,17 @@ public class BazelDepGraphFunction implements SkyFunction {
       ImmutableBiMap<String, ModuleExtensionId> extensionUniqueNames =
           calculateUniqueNameForUsedExtensionId(extensionUsagesById);
 
+      ImmutableMap<Label, ConfigurableTargetOverrideInfo> configurableTargetOverrides;
+      ImmutableMap<Label, ImmutableList<Label>> configurableTargetExtensions;
+      try {
+        configurableTargetOverrides =
+            resolveConfigurableTargetOverrides(depGraph, canonicalRepoNameLookup.inverse());
+        configurableTargetExtensions =
+            resolveConfigurableTargetExtensions(depGraph, canonicalRepoNameLookup.inverse());
+      } catch (ExternalDepsException e) {
+        throw new BazelDepGraphFunctionException(e, Transience.PERSISTENT);
+      }
+
       return BazelDepGraphValue.create(
           depGraph,
           canonicalRepoNameLookup,
@@ -90,7 +105,9 @@ public class BazelDepGraphFunction implements SkyFunction {
               depGraph,
               extensionUsagesById,
               extensionUniqueNames.inverse(),
-              canonicalRepoNameLookup));
+              canonicalRepoNameLookup),
+          configurableTargetOverrides,
+          configurableTargetExtensions);
     }
   }
 
@@ -213,6 +230,86 @@ public class BazelDepGraphFunction implements SkyFunction {
                 + "+"
                 + extensionName
                 + extensionNameDisambiguator);
+  }
+
+  /**
+   * Resolves string-based configurable target overrides from the root module into canonical Label
+   * pairs. Only the root module can call {@code override_target()}, so we only need to process it.
+   */
+  private static ImmutableMap<Label, ConfigurableTargetOverrideInfo> resolveConfigurableTargetOverrides(
+      ImmutableMap<ModuleKey, Module> depGraph,
+      ImmutableMap<ModuleKey, RepositoryName> moduleKeyToRepositoryNames)
+      throws ExternalDepsException {
+    Module rootModule = depGraph.get(ModuleKey.ROOT);
+    if (rootModule == null || rootModule.getConfigurableTargetOverrides().isEmpty()) {
+      return ImmutableMap.of();
+    }
+    RepositoryMapping repoMapping =
+        rootModule.getRepoMappingWithBazelDepsOnly(moduleKeyToRepositoryNames);
+    LabelConverter labelConverter =
+        new LabelConverter(
+            PackageIdentifier.create(repoMapping.contextRepo(), PathFragment.EMPTY_FRAGMENT),
+            repoMapping);
+    ImmutableMap.Builder<Label, ConfigurableTargetOverrideInfo> overrides =
+        ImmutableMap.builder();
+    for (Map.Entry<String, ConfigurableTargetOverrideSpec> entry :
+        rootModule.getConfigurableTargetOverrides().entrySet()) {
+      try {
+        Label virtualLabel = labelConverter.convert(entry.getKey());
+        ConfigurableTargetOverrideSpec spec = entry.getValue();
+        Label replacementLabel = labelConverter.convert(spec.replacement());
+        overrides.put(
+            virtualLabel, new ConfigurableTargetOverrideInfo(replacementLabel, spec.extensible()));
+      } catch (LabelSyntaxException e) {
+        throw ExternalDepsException.withCauseAndMessage(
+            Code.BAD_MODULE,
+            e,
+            "invalid label in override_target in module %s",
+            rootModule.getKey());
+      }
+    }
+    return overrides.buildOrThrow();
+  }
+
+  /**
+   * Resolves string-based configurable target extensions from all modules into canonical Label lists.
+   * Extensions from all modules are aggregated in BFS order.
+   */
+  private static ImmutableMap<Label, ImmutableList<Label>> resolveConfigurableTargetExtensions(
+      ImmutableMap<ModuleKey, Module> depGraph,
+      ImmutableMap<ModuleKey, RepositoryName> moduleKeyToRepositoryNames)
+      throws ExternalDepsException {
+    Map<Label, ImmutableList.Builder<Label>> extensions = new LinkedHashMap<>();
+    for (Module module : depGraph.values()) {
+      if (module.getConfigurableTargetExtensions().isEmpty()) {
+        continue;
+      }
+      RepositoryMapping repoMapping =
+          module.getRepoMappingWithBazelDepsOnly(moduleKeyToRepositoryNames);
+      LabelConverter labelConverter =
+          new LabelConverter(
+              PackageIdentifier.create(repoMapping.contextRepo(), PathFragment.EMPTY_FRAGMENT),
+              repoMapping);
+      for (Map.Entry<String, ImmutableList<String>> entry :
+          module.getConfigurableTargetExtensions().entrySet()) {
+        try {
+          Label virtualLabel = labelConverter.convert(entry.getKey());
+          ImmutableList.Builder<Label> builder =
+              extensions.computeIfAbsent(virtualLabel, k -> ImmutableList.builder());
+          for (String extraStr : entry.getValue()) {
+            builder.add(labelConverter.convert(extraStr));
+          }
+        } catch (LabelSyntaxException e) {
+          throw ExternalDepsException.withCauseAndMessage(
+              Code.BAD_MODULE,
+              e,
+              "invalid label in extend_target in module %s",
+              module.getKey());
+        }
+      }
+    }
+    return extensions.entrySet().stream()
+        .collect(ImmutableMap.toImmutableMap(Map.Entry::getKey, e -> e.getValue().build()));
   }
 
   private static ImmutableTable<ModuleExtensionId, String, RepositoryName> resolveRepoOverrides(

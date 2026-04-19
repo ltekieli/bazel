@@ -18,6 +18,7 @@ package com.google.devtools.build.lib.analysis.config;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
@@ -26,6 +27,8 @@ import com.google.devtools.build.lib.actions.ActionEnvironment;
 import com.google.devtools.build.lib.actions.ArtifactRoot;
 import com.google.devtools.build.lib.actions.BuildConfigurationEvent;
 import com.google.devtools.build.lib.actions.CommandLineLimits;
+import com.google.devtools.build.lib.analysis.BlazeDirectories;
+import com.google.devtools.build.lib.bazel.bzlmod.ConfigurableTargetOverrideInfo;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
 import com.google.devtools.build.lib.analysis.PlatformOptions;
 import com.google.devtools.build.lib.analysis.test.TestConfiguration.TestOptions;
@@ -141,6 +144,12 @@ public class BuildConfigurationValue
 
   private final FeatureSet defaultFeatures;
 
+  /** Virtual target overrides from the module dependency graph. Build-global (same for all configs). */
+  private final ImmutableMap<Label, ConfigurableTargetOverrideInfo> configurableTargetOverrides;
+
+  /** Virtual target extensions from the module dependency graph. Build-global (same for all configs). */
+  private final ImmutableMap<Label, ImmutableList<Label>> configurableTargetExtensions;
+
   @Nullable // lazily initialized
   private transient volatile BuildConfigurationEvent buildEvent;
 
@@ -199,7 +208,9 @@ public class BuildConfigurationValue
       // Arguments below this are server-global.
       BlazeDirectories directories,
       GlobalStateProvider globalProvider,
-      FragmentFactory fragmentFactory)
+      FragmentFactory fragmentFactory,
+      ImmutableMap<Label, ConfigurableTargetOverrideInfo> configurableTargetOverrides,
+      ImmutableMap<Label, ImmutableList<Label>> configurableTargetExtensions)
       throws InvalidConfigurationException {
 
     FragmentClassSet fragmentClasses =
@@ -221,7 +232,9 @@ public class BuildConfigurationValue
         directories,
         fragments,
         globalProvider.getReservedActionMnemonics(),
-        globalProvider.getActionEnvironment(buildOptions));
+        globalProvider.getActionEnvironment(buildOptions),
+        configurableTargetOverrides,
+        configurableTargetExtensions);
   }
 
   // TODO(blaze-configurability-team): Ideally tests use the above create; however,
@@ -254,7 +267,9 @@ public class BuildConfigurationValue
         directories,
         fragments,
         globalProvider.getReservedActionMnemonics(),
-        globalProvider.getActionEnvironment(buildOptions));
+        globalProvider.getActionEnvironment(buildOptions),
+        ImmutableMap.of(),
+        ImmutableMap.of());
   }
 
   private static ImmutableSortedMap<Class<? extends Fragment>, Fragment> getConfigurationFragments(
@@ -282,7 +297,9 @@ public class BuildConfigurationValue
       BlazeDirectories directories,
       ImmutableMap<Class<? extends Fragment>, Fragment> fragments,
       ImmutableSet<String> reservedActionMnemonics,
-      ActionEnvironment actionEnvironment) {
+      ActionEnvironment actionEnvironment,
+      ImmutableMap<Label, ConfigurableTargetOverrideInfo> configurableTargetOverrides,
+      ImmutableMap<Label, ImmutableList<Label>> configurableTargetExtensions) {
     this.fragments =
         fragmentsInterner.intern(
             ImmutableSortedMap.copyOf(fragments, FragmentClassSet.LEXICAL_FRAGMENT_SORTER));
@@ -331,6 +348,8 @@ public class BuildConfigurationValue
     this.reservedActionMnemonics = reservedActionMnemonics;
     this.commandLineLimits = new CommandLineLimits(options.minParamFileSize);
     this.defaultFeatures = FeatureSet.parse(options.defaultFeatures);
+    this.configurableTargetOverrides = configurableTargetOverrides;
+    this.configurableTargetExtensions = configurableTargetExtensions;
   }
 
   @Override
@@ -345,12 +364,15 @@ public class BuildConfigurationValue
     return this.buildOptions.equals(otherVal.buildOptions)
         && this.workspaceName.equals(otherVal.workspaceName)
         && this.siblingRepositoryLayout == otherVal.siblingRepositoryLayout
-        && this.mnemonic.equals(otherVal.mnemonic);
+        && this.mnemonic.equals(otherVal.mnemonic)
+        && this.configurableTargetOverrides.equals(otherVal.configurableTargetOverrides)
+        && this.configurableTargetExtensions.equals(otherVal.configurableTargetExtensions);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(buildOptions, workspaceName, siblingRepositoryLayout, mnemonic);
+    return Objects.hash(buildOptions, workspaceName, siblingRepositoryLayout, mnemonic,
+        configurableTargetOverrides, configurableTargetExtensions);
   }
 
   private ImmutableMap<String, Class<? extends Fragment>> buildIndexOfStarlarkVisibleFragments() {
@@ -843,6 +865,16 @@ public class BuildConfigurationValue
    */
   public BuildOptions getOptions() {
     return buildOptions;
+  }
+
+  /** Returns the configurable target overrides from the module dependency graph. */
+  public ImmutableMap<Label, ConfigurableTargetOverrideInfo> getConfigurableTargetOverrides() {
+    return configurableTargetOverrides;
+  }
+
+  /** Returns the configurable target extensions from the module dependency graph. */
+  public ImmutableMap<Label, ImmutableList<Label>> getConfigurableTargetExtensions() {
+    return configurableTargetExtensions;
   }
 
   public String getCpu() {

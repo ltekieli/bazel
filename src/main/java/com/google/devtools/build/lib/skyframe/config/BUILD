@@ -45,6 +45,8 @@ java_library(
         "//src/main/java/com/google/devtools/build/lib/analysis/config/transitions:baseline_options_value",
         "//src/main/java/com/google/devtools/build/lib/analysis/platform",
         "//src/main/java/com/google/devtools/build/lib/analysis/producers:build_configuration_key_map_producer",
+        "//src/main/java/com/google/devtools/build/lib/bazel/bzlmod:resolution",
+        "//src/main/java/com/google/devtools/build/lib/bazel/bzlmod:configurable_target_override",
         "//src/main/java/com/google/devtools/build/lib/cmdline",
         "//src/main/java/com/google/devtools/build/lib/events",
         "//src/main/java/com/google/devtools/build/lib/packages",

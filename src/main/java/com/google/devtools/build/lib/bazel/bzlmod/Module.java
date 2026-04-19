@@ -76,7 +76,9 @@ public abstract class Module extends ModuleBase {
 
   /** Returns a new, empty {@link Builder}. */
   public static Builder builder() {
-    return new AutoValue_Module.Builder();
+    return new AutoValue_Module.Builder()
+        .setConfigurableTargetOverrides(ImmutableMap.of())
+        .setConfigurableTargetExtensions(ImmutableMap.of());
   }
 
   /** Builder type for {@link Module}. */
@@ -99,6 +101,12 @@ public abstract class Module extends ModuleBase {
     abstract ImmutableMap.Builder<String, ModuleKey> depsBuilder();
 
     public abstract Builder setFlagAliases(ImmutableMap<String, String> value);
+
+    public abstract Builder setConfigurableTargetOverrides(
+        ImmutableMap<String, ConfigurableTargetOverrideSpec> value);
+
+    public abstract Builder setConfigurableTargetExtensions(
+        ImmutableMap<String, ImmutableList<String>> value);
 
     @CanIgnoreReturnValue
     public Builder addDep(String depRepoName, ModuleKey depKey) {

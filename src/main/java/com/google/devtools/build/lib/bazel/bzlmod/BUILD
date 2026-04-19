@@ -142,6 +142,17 @@ java_library(
 )
 
 java_library(
+    name = "configurable_target_override",
+    srcs = [
+        "ConfigurableTargetOverrideInfo.java",
+        "ConfigurableTargetOverrideSpec.java",
+    ],
+    deps = [
+        "//src/main/java/com/google/devtools/build/lib/cmdline",
+    ],
+)
+
+java_library(
     name = "resolution",
     srcs = [
         "AbridgedModule.java",
@@ -180,6 +191,7 @@ java_library(
         ":module_extension_metadata",
         ":registry",
         ":root_module_file_fixup",
+        ":configurable_target_override",
         "//src/main/java/com/google/devtools/build/docgen/annot",
         "//src/main/java/com/google/devtools/build/lib/bazel/repository:repo_definition",
         "//src/main/java/com/google/devtools/build/lib/bazel/repository/downloader",
@@ -267,6 +279,7 @@ java_library(
         ":registry",
         ":resolution",
         ":serialization",
+        ":configurable_target_override",
         "//src/main/java/com/google/devtools/build/docgen/annot",
         "//src/main/java/com/google/devtools/build/lib:runtime",
         "//src/main/java/com/google/devtools/build/lib/actions:file_metadata",

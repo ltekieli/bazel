@@ -21,6 +21,7 @@ import com.google.devtools.build.lib.packages.semantics.BuildLanguageOptions;
 import com.google.devtools.build.lib.rules.Alias.AliasRule;
 import com.google.devtools.build.lib.rules.LabelBuildSettings.LabelBuildFlagRule;
 import com.google.devtools.build.lib.rules.LabelBuildSettings.LabelBuildSettingRule;
+import com.google.devtools.build.lib.rules.ConfigurableTarget.ConfigurableTargetRule;
 import com.google.devtools.build.lib.rules.core.CoreRules;
 import com.google.devtools.build.lib.rules.filegroup.FilegroupRule;
 import com.google.devtools.build.lib.rules.genquery.GenQueryRule;
@@ -43,6 +44,7 @@ public class GenericRules implements RuleSet {
     builder.addRuleDefinition(new EnvironmentRule());
 
     builder.addRuleDefinition(new AliasRule());
+    builder.addRuleDefinition(new ConfigurableTargetRule());
     builder.addRuleDefinition(new FilegroupRule());
     builder.addRuleDefinition(new TestSuiteRule());
     GenQueryRule.register(builder);

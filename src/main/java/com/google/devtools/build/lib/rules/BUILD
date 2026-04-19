@@ -79,6 +79,29 @@ java_library(
 )
 
 java_library(
+    name = "configurable_target",
+    srcs = ["ConfigurableTarget.java"],
+    deps = [
+        ":alias",
+        "//src/main/java/com/google/devtools/build/lib/actions",
+        "//src/main/java/com/google/devtools/build/lib/actions:artifacts",
+        "//src/main/java/com/google/devtools/build/lib/analysis:analysis_cluster",
+        "//src/main/java/com/google/devtools/build/lib/analysis:configured_target",
+        "//src/main/java/com/google/devtools/build/lib/analysis:file_provider",
+        "//src/main/java/com/google/devtools/build/lib/analysis:rule_definition_environment",
+        "//src/main/java/com/google/devtools/build/lib/analysis:transitive_info_collection",
+        "//src/main/java/com/google/devtools/build/lib/analysis/config:build_configuration",
+        "//src/main/java/com/google/devtools/build/lib/bazel/bzlmod:configurable_target_override",
+        "//src/main/java/com/google/devtools/build/lib/cmdline",
+        "//src/main/java/com/google/devtools/build/lib/collect/nestedset",
+        "//src/main/java/com/google/devtools/build/lib/packages",
+        "//src/main/java/com/google/devtools/build/lib/skyframe/serialization:visible-for-serialization",
+        "//src/main/java/com/google/devtools/build/lib/skyframe/serialization/autocodec:serialization-constant",
+        "@maven//:com_google_guava_guava",
+    ],
+)
+
+java_library(
     name = "extra/action_listener",
     srcs = ["extra/ActionListener.java"],
     deps = [

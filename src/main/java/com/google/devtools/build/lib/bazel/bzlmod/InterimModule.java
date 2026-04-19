@@ -117,7 +117,9 @@ public abstract class InterimModule extends ModuleBase {
         .setName("")
         .setVersion(Version.EMPTY)
         .setKey(ModuleKey.ROOT)
-        .setCompatibilityLevel(0);
+        .setCompatibilityLevel(0)
+        .setConfigurableTargetOverrides(ImmutableMap.of())
+        .setConfigurableTargetExtensions(ImmutableMap.of());
   }
 
   /**
@@ -200,6 +202,12 @@ public abstract class InterimModule extends ModuleBase {
 
     public abstract Builder setExtensionUsages(ImmutableList<ModuleExtensionUsage> value);
 
+    public abstract Builder setConfigurableTargetOverrides(
+        ImmutableMap<String, ConfigurableTargetOverrideSpec> value);
+
+    public abstract Builder setConfigurableTargetExtensions(
+        ImmutableMap<String, ImmutableList<String>> value);
+
     abstract ImmutableList.Builder<ModuleExtensionUsage> extensionUsagesBuilder();
 
     @CanIgnoreReturnValue
@@ -246,6 +254,8 @@ public abstract class InterimModule extends ModuleBase {
         .setRepoSpec(maybeAppendAdditionalPatches(remoteRepoSpec, override))
         .setExtensionUsages(interim.getExtensionUsages())
         .setFlagAliases(interim.getFlagAliases())
+        .setConfigurableTargetOverrides(interim.getConfigurableTargetOverrides())
+        .setConfigurableTargetExtensions(interim.getConfigurableTargetExtensions())
         .build();
   }
 
